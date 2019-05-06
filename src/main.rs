@@ -86,9 +86,13 @@ impl Game {
 
         self.snake.direction = match btn {
             &Button::Keyboard(Key::Up) if last_direction != Direction::Down => Direction::Up,
+            &Button::Keyboard(Key::W) if last_direction != Direction::Down => Direction::Up,
             &Button::Keyboard(Key::Down) if last_direction != Direction::Up => Direction::Down,
+            &Button::Keyboard(Key::S) if last_direction != Direction::Up => Direction::Down,
             &Button::Keyboard(Key::Left) if last_direction != Direction::Right => Direction::Left,
+            &Button::Keyboard(Key::A) if last_direction != Direction::Right => Direction::Left,
             &Button::Keyboard(Key::Right) if last_direction != Direction::Left => Direction::Right,
+            &Button::Keyboard(Key::D) if last_direction != Direction::Left => Direction::Right,
             _ => last_direction,
         };
     }
@@ -237,7 +241,7 @@ fn main() {
         }
     };
 
-    let mut events = Events::new(EventSettings::new()).ups(10);
+    let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
 
         if let Some(r) = e.render_args() {
@@ -260,7 +264,7 @@ fn main() {
 }
 
 // TODO:
-// - accelerer jeu au fur et à mesure
+// - accelerer jeu au fur et à mesure ?
 // - mettre pause
 // - afficher le score sur la fenetre
 // - ecran de fin
