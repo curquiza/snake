@@ -13,6 +13,20 @@ use opengl_graphics::{ GlGraphics, OpenGL };
 use std::collections::LinkedList;
 use std::iter::FromIterator;
 use rand::Rng;
+use std::{thread, time};
+
+static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
+static SNAKE_HEAD_COLOR: [f32; 4] = [1.0, 0.27, 0.0, 1.0];
+static SNAKE_BODY_COLOR: [f32; 4] = [1.0, 0.50, 0.31, 1.0];
+static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
+
+#[derive(Clone, PartialEq)]
+enum GameStatus {
+    Running,
+    Pause,
+    TitleScreen,
+    End,
+}
 
 #[derive(Clone, PartialEq)]
 enum Direction {
@@ -28,16 +42,16 @@ struct Game {
     gl: GlGraphics,
     score: u32,
     snake: Snake,
-    food: Food
+    food: Food,
+    status: GameStatus
 }
 
 impl Game {
     fn render(&mut self, arg: &RenderArgs) {
         use graphics;
 
-        let color: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
         self.gl.draw(arg.viewport(), |_c, gl| {
-            graphics::clear(color, gl);
+            graphics::clear(BACKGROUND_COLOR, gl);
         });
 
         self.food.render(&mut self.gl, arg, self.pixels_per_case);
@@ -55,8 +69,6 @@ impl Game {
             return false
         }
 
-        self.snake.update();
-
         if self.snake.bites_itself() == true {
             self.end();
             return false
@@ -68,6 +80,8 @@ impl Game {
             self.snake.grow(self.width, self.pixels_per_case);
             self.food.update(self.width, self.pixels_per_case, &self.snake);
         }
+
+        self.snake.update();
 
         return true
     }
@@ -107,9 +121,6 @@ impl Snake {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
         use graphics;
 
-        let body_color: [f32; 4] = [1.0, 0.50, 0.31, 1.0];
-        let head_color: [f32; 4] = [1.0, 0.27, 0.0, 1.0];
-
         let mut squares: Vec<graphics::types::Rectangle> = self.body
             .iter()
             .map(|&(x, y)| {
@@ -124,11 +135,10 @@ impl Snake {
             let transform = c.transform;
 
             if let Some(&first) = squares.first() {
-                graphics::rectangle(head_color, first, transform, gl);
                 squares.remove(0);
-            }
-            squares.into_iter()
-                .for_each(|square| graphics::rectangle(body_color, square, transform, gl))
+                squares.into_iter().for_each(|square| graphics::rectangle(SNAKE_BODY_COLOR, square, transform, gl));
+                graphics::rectangle(SNAKE_HEAD_COLOR, first, transform, gl);
+            };
         });
     }
 
@@ -182,8 +192,6 @@ impl Food {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
         use graphics;
 
-        let color: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
-
         let square = graphics::rectangle::square(
             (self.pos_x * pixels) as f64,
             (self.pos_y * pixels) as f64,
@@ -192,7 +200,7 @@ impl Food {
         gl.draw(args.viewport(), |c, gl| {
             let transform = c.transform;
 
-            graphics::rectangle(color, square, transform, gl)
+            graphics::rectangle(FOOD_COLOR, square, transform, gl)
         });
     }
 
@@ -212,6 +220,55 @@ fn collision_count(entity: &(u32, u32), body: &LinkedList<(u32, u32)>) -> usize 
     body.iter().filter(|(x, y)| {
         *x == entity.0 && *y == entity.1
     }).count()
+}
+
+fn wait_in_sec(time: u64) {
+    let t = time::Duration::from_secs(time);
+    thread::sleep(t);
+}
+
+fn game_loop(e: &Event, game: &mut Game) -> GameStatus {
+    if let Some(r) = e.render_args() {
+        game.render(&r);
+    }
+
+    if let Some(_u) = e.update_args() {
+        if game.update() == false {
+            wait_in_sec(3);
+            return GameStatus::TitleScreen
+        }
+    }
+
+    if let Some(k) = e.button_args() {
+        if k.state == ButtonState::Press {
+            game.pressed(&k.button)
+        }
+    }
+    return GameStatus::Running
+}
+
+fn screen_game(e: &Event, game: &mut Game) -> GameStatus {
+
+    if let Some(r) = e.render_args() {
+        use graphics;
+
+        game.gl.draw(r.viewport(), |_c, gl| {
+            graphics::clear(BACKGROUND_COLOR, gl);
+        });
+    }
+
+    if let Some(k) = e.button_args() {
+        if k.state == ButtonState::Press {
+            if k.button == Button::Keyboard(Key::Return) {
+                return GameStatus::Running
+            }
+            else if k.button == Button::Keyboard(Key::Q) {
+                return GameStatus::End
+            }
+        }
+    }
+
+    return GameStatus::TitleScreen
 }
 
 fn main() {
@@ -238,26 +295,23 @@ fn main() {
         food: Food {
             pos_x: 15,
             pos_y: 15
-        }
+        },
+        status: GameStatus::TitleScreen
     };
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
 
-        if let Some(r) = e.render_args() {
-            game.render(&r);
+        if game.status == GameStatus::TitleScreen {
+            game.status = screen_game(&e, &mut game);
         }
 
-        if let Some(_u) = e.update_args() {
-            if game.update() == false {
-                break;
-            }
+        if game.status == GameStatus::Running {
+            game.status = game_loop(&e, &mut game);
         }
 
-        if let Some(k) = e.button_args() {
-            if k.state == ButtonState::Press {
-                game.pressed(&k.button)
-            }
+        if game.status == GameStatus::End {
+            break;
         }
 
     }
