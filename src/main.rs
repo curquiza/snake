@@ -20,7 +20,7 @@ static SNAKE_HEAD_COLOR: [f32; 4] = [1.0, 0.27, 0.0, 1.0];
 static SNAKE_BODY_COLOR: [f32; 4] = [1.0, 0.50, 0.31, 1.0];
 static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum GameStatus {
     Running,
     Pause,
@@ -271,19 +271,8 @@ fn screen_game(e: &Event, game: &mut Game) -> GameStatus {
     return GameStatus::TitleScreen
 }
 
-fn main() {
-    let opengl = OpenGL::V3_2;
-    let width: u32 = 500;
-
-    let mut window: Window = WindowSettings::new(
-        "Best Snake",
-        [width, width]
-    ).opengl(opengl)
-    .exit_on_esc(true)
-    .build()
-    .unwrap();
-
-    let mut game = Game {
+fn new_game(width: u32, opengl: OpenGL, status: GameStatus) -> Game {
+    Game {
         width: width,
         pixels_per_case: 20,
         gl: GlGraphics::new(opengl),
@@ -296,14 +285,32 @@ fn main() {
             pos_x: 15,
             pos_y: 15
         },
-        status: GameStatus::TitleScreen
-    };
+        status: status
+    }
+}
+
+fn main() {
+    let opengl = OpenGL::V3_2;
+    let width: u32 = 500;
+
+    let mut window: Window = WindowSettings::new(
+        "Best Snake",
+        [width, width]
+    ).opengl(opengl)
+    .exit_on_esc(true)
+    .build()
+    .unwrap();
+
+    let mut game = new_game(width, opengl, GameStatus::TitleScreen);
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
 
         if game.status == GameStatus::TitleScreen {
-            game.status = screen_game(&e, &mut game);
+            game.status = screen_game_loop(&e, &mut game);
+            if game.status == GameStatus::Running {
+                game = new_game(width, opengl, GameStatus::Running);
+            }
         }
 
         if game.status == GameStatus::Running {
