@@ -8,11 +8,26 @@ use piston::window::WindowSettings;
 use piston::event_loop::*;
 use piston::input::*;
 use glutin_window::GlutinWindow as Window;
-use opengl_graphics::{ GlGraphics, OpenGL };
+use opengl_graphics::{ GlGraphics, OpenGL, GlyphCache };
 
 use std::collections::LinkedList;
 use std::iter::FromIterator;
 use rand::Rng;
+use std::{thread, time};
+
+static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
+static SNAKE_HEAD_COLOR: [f32; 4] = [0.6, 0.2, 0.6, 1.0];
+static SNAKE_BODY_COLOR: [f32; 4] = [0.925, 0.0, 0.55, 1.0];
+static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
+static MAIN_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
+static TITLE_TEXT_COLOR: [f32; 4] = SNAKE_BODY_COLOR;
+
+#[derive(Debug, Clone, PartialEq)]
+enum GameStatus {
+    Running,
+    TitleScreen,
+    End,
+}
 
 #[derive(Clone, PartialEq)]
 enum Direction {
@@ -35,9 +50,8 @@ impl Game {
     fn render(&mut self, arg: &RenderArgs) {
         use graphics;
 
-        let color: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
         self.gl.draw(arg.viewport(), |_c, gl| {
-            graphics::clear(color, gl);
+            graphics::clear(BACKGROUND_COLOR, gl);
         });
 
         self.food.render(&mut self.gl, arg, self.pixels_per_case);
@@ -55,8 +69,6 @@ impl Game {
             return false
         }
 
-        self.snake.update();
-
         if self.snake.bites_itself() == true {
             self.end();
             return false
@@ -64,10 +76,11 @@ impl Game {
 
         if self.snake_eats_food() == true {
             self.score += 1;
-            println!("New score : {}", self.score);
             self.snake.grow(self.width, self.pixels_per_case);
             self.food.update(self.width, self.pixels_per_case, &self.snake);
         }
+
+        self.snake.update();
 
         return true
     }
@@ -107,9 +120,6 @@ impl Snake {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
         use graphics;
 
-        let body_color: [f32; 4] = [1.0, 0.50, 0.31, 1.0];
-        let head_color: [f32; 4] = [1.0, 0.27, 0.0, 1.0];
-
         let mut squares: Vec<graphics::types::Rectangle> = self.body
             .iter()
             .map(|&(x, y)| {
@@ -124,11 +134,10 @@ impl Snake {
             let transform = c.transform;
 
             if let Some(&first) = squares.first() {
-                graphics::rectangle(head_color, first, transform, gl);
                 squares.remove(0);
-            }
-            squares.into_iter()
-                .for_each(|square| graphics::rectangle(body_color, square, transform, gl))
+                squares.into_iter().for_each(|square| graphics::rectangle(SNAKE_BODY_COLOR, square, transform, gl));
+                graphics::rectangle(SNAKE_HEAD_COLOR, first, transform, gl);
+            };
         });
     }
 
@@ -182,8 +191,6 @@ impl Food {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
         use graphics;
 
-        let color: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
-
         let square = graphics::rectangle::square(
             (self.pos_x * pixels) as f64,
             (self.pos_y * pixels) as f64,
@@ -192,7 +199,7 @@ impl Food {
         gl.draw(args.viewport(), |c, gl| {
             let transform = c.transform;
 
-            graphics::rectangle(color, square, transform, gl)
+            graphics::rectangle(FOOD_COLOR, square, transform, gl);
         });
     }
 
@@ -214,19 +221,108 @@ fn collision_count(entity: &(u32, u32), body: &LinkedList<(u32, u32)>) -> usize 
     }).count()
 }
 
-fn main() {
-    let opengl = OpenGL::V3_2;
-    let width: u32 = 500;
+fn wait_in_sec(time: u64) {
+    let t = time::Duration::from_secs(time);
+    thread::sleep(t);
+}
 
-    let mut window: Window = WindowSettings::new(
-        "Best Snake",
-        [width, width]
-    ).opengl(opengl)
-    .exit_on_esc(true)
-    .build()
-    .unwrap();
+fn game_events_manager(e: &Event, game: &mut Game) -> GameStatus {
+    if let Some(r) = e.render_args() {
+        game.render(&r);
+    }
 
-    let mut game = Game {
+    if let Some(_u) = e.update_args() {
+        if game.update() == false {
+            wait_in_sec(3);
+            return GameStatus::TitleScreen
+        }
+    }
+
+    if let Some(k) = e.button_args() {
+        if k.state == ButtonState::Press {
+            game.pressed(&k.button)
+        }
+    }
+    return GameStatus::Running
+}
+
+fn draw_text(glyph_cache: &mut GlyphCache, color: [f32; 4], size: u32, text: &str, transform: graphics::math::Matrix2d, gl: &mut GlGraphics) {
+    graphics::text(
+        color,
+        size,
+        text,
+        glyph_cache,
+        transform,
+        gl,
+    ).unwrap();
+}
+
+fn title_screen_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache) -> GameStatus {
+
+    if let Some(r) = e.render_args() {
+        use graphics;
+        use graphics::Transformed;
+
+        let pixels = game.pixels_per_case;
+        game.gl.draw(r.viewport(), |c, gl| {
+
+            graphics::clear(BACKGROUND_COLOR, gl);
+
+            draw_text(
+                glyph_cache,
+                TITLE_TEXT_COLOR,
+                50,
+                "SNAKE",
+                c.transform.trans(8.3 * pixels as f64, 5.5 * pixels as f64),
+                gl
+            );
+
+            draw_text(
+                glyph_cache,
+                MAIN_TEXT_COLOR,
+                16,
+                "Press Enter to play",
+                c.transform.trans(7.3 * pixels as f64, 13.0 * pixels as f64),
+                gl
+            );
+
+            draw_text(
+                glyph_cache,
+                MAIN_TEXT_COLOR,
+                13,
+                "s: scores table (wip)",
+                c.transform.trans(1.0 * pixels as f64, 23.0 * pixels as f64),
+                gl
+            );
+
+            draw_text(
+                glyph_cache,
+                MAIN_TEXT_COLOR,
+                13,
+                "q: quit",
+                c.transform.trans(1.0 * pixels as f64, 24.0 * pixels as f64),
+                gl
+            );
+
+        });
+    }
+
+    if let Some(k) = e.button_args() {
+        if k.state == ButtonState::Press {
+            if k.button == Button::Keyboard(Key::Return) {
+                return GameStatus::Running
+            }
+            else if k.button == Button::Keyboard(Key::Q) {
+                return GameStatus::End
+            }
+        }
+    }
+
+    return GameStatus::TitleScreen
+}
+
+fn new_game(width: u32, opengl: OpenGL) -> Game {
+    Game {
         width: width,
         pixels_per_case: 20,
         gl: GlGraphics::new(opengl),
@@ -239,32 +335,55 @@ fn main() {
             pos_x: 15,
             pos_y: 15
         }
-    };
+    }
+}
+
+fn main() {
+    let opengl = OpenGL::V3_2;
+    let width: u32 = 500;
+
+    let mut window: Window = WindowSettings::new(
+        "Best Snake Ever",
+        [width, width]
+    ).opengl(opengl)
+    .exit_on_esc(true)
+    .build()
+    .unwrap();
+
+    let mut glyph_cache: GlyphCache = graphics::glyph_cache::rusttype::GlyphCache::new(
+        "./assets/PxPlus_IBM_VGA8.ttf",
+        (),
+        opengl_graphics::TextureSettings::new()
+    ).expect("Unable to load font");
+
+    let mut status = GameStatus::TitleScreen;
+    let mut game = new_game(width, opengl);
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
 
-        if let Some(r) = e.render_args() {
-            game.render(&r);
-        }
-
-        if let Some(_u) = e.update_args() {
-            if game.update() == false {
-                break;
+        if status == GameStatus::TitleScreen {
+            status = title_screen_events_manager(&e, &mut game, &mut glyph_cache);
+            if status == GameStatus::Running {
+                game = new_game(width, opengl);
             }
         }
 
-        if let Some(k) = e.button_args() {
-            if k.state == ButtonState::Press {
-                game.pressed(&k.button)
-            }
+        if status == GameStatus::Running {
+            status = game_events_manager(&e, &mut game);
+        }
+
+        if status == GameStatus::End {
+            break;
         }
 
     }
 }
 
 // TODO:
-// - accelerer jeu au fur et à mesure ?
 // - mettre pause
 // - afficher le score sur la fenetre
 // - ecran de fin
+// - enlever les liste chainées, mettre des vecteurs
+// - pb des keys qui vont plus vite que l'update
+// - verifier random de la food
