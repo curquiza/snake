@@ -23,7 +23,6 @@ static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
 #[derive(Debug, Clone, PartialEq)]
 enum GameStatus {
     Running,
-    Pause,
     TitleScreen,
     End,
 }
@@ -42,8 +41,7 @@ struct Game {
     gl: GlGraphics,
     score: u32,
     snake: Snake,
-    food: Food,
-    status: GameStatus
+    food: Food
 }
 
 impl Game {
@@ -76,7 +74,6 @@ impl Game {
 
         if self.snake_eats_food() == true {
             self.score += 1;
-            println!("New score : {}", self.score);
             self.snake.grow(self.width, self.pixels_per_case);
             self.food.update(self.width, self.pixels_per_case, &self.snake);
         }
@@ -227,7 +224,7 @@ fn wait_in_sec(time: u64) {
     thread::sleep(t);
 }
 
-fn game_loop(e: &Event, game: &mut Game) -> GameStatus {
+fn game_events_manager(e: &Event, game: &mut Game) -> GameStatus {
     if let Some(r) = e.render_args() {
         game.render(&r);
     }
@@ -271,7 +268,7 @@ fn screen_game(e: &Event, game: &mut Game) -> GameStatus {
     return GameStatus::TitleScreen
 }
 
-fn new_game(width: u32, opengl: OpenGL, status: GameStatus) -> Game {
+fn new_game(width: u32, opengl: OpenGL) -> Game {
     Game {
         width: width,
         pixels_per_case: 20,
@@ -284,8 +281,7 @@ fn new_game(width: u32, opengl: OpenGL, status: GameStatus) -> Game {
         food: Food {
             pos_x: 15,
             pos_y: 15
-        },
-        status: status
+        }
     }
 }
 
@@ -301,23 +297,24 @@ fn main() {
     .build()
     .unwrap();
 
-    let mut game = new_game(width, opengl, GameStatus::TitleScreen);
+    let mut status = GameStatus::TitleScreen;
+    let mut game = new_game(width, opengl);
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
 
-        if game.status == GameStatus::TitleScreen {
-            game.status = screen_game_loop(&e, &mut game);
-            if game.status == GameStatus::Running {
-                game = new_game(width, opengl, GameStatus::Running);
+        if status == GameStatus::TitleScreen {
+            status = title_screen_events_manager(&e, &mut game);
+            if status == GameStatus::Running {
+                game = new_game(width, opengl);
             }
         }
 
-        if game.status == GameStatus::Running {
-            game.status = game_loop(&e, &mut game);
+        if status == GameStatus::Running {
+            status = game_events_manager(&e, &mut game);
         }
 
-        if game.status == GameStatus::End {
+        if status == GameStatus::End {
             break;
         }
 
@@ -329,3 +326,5 @@ fn main() {
 // - mettre pause
 // - afficher le score sur la fenetre
 // - ecran de fin
+// - enlever les liste chainées, mettre des vecteurs
+// - pb des keys qui vont plus vite que l'update
