@@ -51,7 +51,6 @@ struct Game {
 
 impl Game {
     fn render(&mut self, arg: &RenderArgs) {
-        use graphics;
 
         self.gl.draw(arg.viewport(), |_c, gl| {
             graphics::clear(BACKGROUND_COLOR, gl);
@@ -188,7 +187,6 @@ struct Food {
 
 impl Food {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
-        use graphics;
 
         let square = graphics::rectangle::square(
             (self.pos_x * pixels) as f64,
