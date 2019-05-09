@@ -14,6 +14,7 @@ use std::collections::LinkedList;
 use std::iter::FromIterator;
 use rand::Rng;
 use std::{thread, time};
+use graphics::Transformed;
 
 static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
 static SNAKE_HEAD_COLOR: [f32; 4] = [0.6, 0.2, 0.6, 1.0];
@@ -21,12 +22,14 @@ static SNAKE_BODY_COLOR: [f32; 4] = [0.925, 0.0, 0.55, 1.0];
 static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
 static MAIN_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
 static TITLE_TEXT_COLOR: [f32; 4] = SNAKE_BODY_COLOR;
+static END_SCREEN_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 0.2];
 
 #[derive(Debug, Clone, PartialEq)]
 enum GameStatus {
     Running,
     TitleScreen,
-    End,
+    EndScreen,
+    Quit,
 }
 
 #[derive(Clone, PartialEq)]
@@ -48,7 +51,6 @@ struct Game {
 
 impl Game {
     fn render(&mut self, arg: &RenderArgs) {
-        use graphics;
 
         self.gl.draw(arg.viewport(), |_c, gl| {
             graphics::clear(BACKGROUND_COLOR, gl);
@@ -118,8 +120,6 @@ struct Snake {
 
 impl Snake {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
-        use graphics;
-
         let mut squares: Vec<graphics::types::Rectangle> = self.body
             .iter()
             .map(|&(x, y)| {
@@ -131,12 +131,10 @@ impl Snake {
             .collect();
 
         gl.draw(args.viewport(), |c, gl| {
-            let transform = c.transform;
-
             if let Some(&first) = squares.first() {
                 squares.remove(0);
-                squares.into_iter().for_each(|square| graphics::rectangle(SNAKE_BODY_COLOR, square, transform, gl));
-                graphics::rectangle(SNAKE_HEAD_COLOR, first, transform, gl);
+                squares.into_iter().for_each(|square| graphics::rectangle(SNAKE_BODY_COLOR, square, c.transform, gl));
+                graphics::rectangle(SNAKE_HEAD_COLOR, first, c.transform, gl);
             };
         });
     }
@@ -189,7 +187,6 @@ struct Food {
 
 impl Food {
     pub fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, pixels: u32) {
-        use graphics;
 
         let square = graphics::rectangle::square(
             (self.pos_x * pixels) as f64,
@@ -221,6 +218,17 @@ fn collision_count(entity: &(u32, u32), body: &LinkedList<(u32, u32)>) -> usize 
     }).count()
 }
 
+fn draw_text(glyph_cache: &mut GlyphCache, color: [f32; 4], size: u32, text: &str, transform: graphics::math::Matrix2d, gl: &mut GlGraphics) {
+    graphics::text(
+        color,
+        size,
+        text,
+        glyph_cache,
+        transform,
+        gl,
+    ).unwrap();
+}
+
 fn wait_in_sec(time: u64) {
     let t = time::Duration::from_secs(time);
     thread::sleep(t);
@@ -233,8 +241,7 @@ fn game_events_manager(e: &Event, game: &mut Game) -> GameStatus {
 
     if let Some(_u) = e.update_args() {
         if game.update() == false {
-            wait_in_sec(3);
-            return GameStatus::TitleScreen
+            return GameStatus::EndScreen
         }
     }
 
@@ -246,23 +253,9 @@ fn game_events_manager(e: &Event, game: &mut Game) -> GameStatus {
     return GameStatus::Running
 }
 
-fn draw_text(glyph_cache: &mut GlyphCache, color: [f32; 4], size: u32, text: &str, transform: graphics::math::Matrix2d, gl: &mut GlGraphics) {
-    graphics::text(
-        color,
-        size,
-        text,
-        glyph_cache,
-        transform,
-        gl,
-    ).unwrap();
-}
-
 fn title_screen_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache) -> GameStatus {
 
     if let Some(r) = e.render_args() {
-        use graphics;
-        use graphics::Transformed;
-
         let pixels = game.pixels_per_case;
         game.gl.draw(r.viewport(), |c, gl| {
 
@@ -309,16 +302,42 @@ fn title_screen_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut Gly
 
     if let Some(k) = e.button_args() {
         if k.state == ButtonState::Press {
-            if k.button == Button::Keyboard(Key::Return) {
-                return GameStatus::Running
-            }
-            else if k.button == Button::Keyboard(Key::Q) {
-                return GameStatus::End
+
+            match k.button {
+                Button::Keyboard(Key::Return) => return GameStatus::Running,
+                Button::Keyboard(Key::Q) => return GameStatus::Quit,
+                _ => return GameStatus::TitleScreen
             }
         }
     }
 
     return GameStatus::TitleScreen
+}
+
+fn end_screen_events_manager(e: &Event, game: &mut Game, wait_end_screen: &mut u32, glyph_cache: &mut GlyphCache) -> GameStatus {
+    if let Some(r) = e.render_args() {
+        *wait_end_screen += 1;
+
+        let pixels = game.pixels_per_case;
+        game.gl.draw(r.viewport(), |c, gl| {
+            let background = graphics::rectangle::square(0.0, 0.0, 500.0);
+            graphics::rectangle(END_SCREEN_COLOR, background, c.transform, gl);
+            draw_text(
+                glyph_cache,
+                TITLE_TEXT_COLOR, 35,
+                "Game over",
+                c.transform.trans(7.0 * pixels as f64, 12.0 * pixels as f64),
+                gl
+            );
+        });
+
+        if *wait_end_screen == 2 {
+            wait_in_sec(2);
+            *wait_end_screen = 0;
+            return GameStatus::TitleScreen
+        }
+    }
+    return GameStatus::EndScreen
 }
 
 fn new_game(width: u32, opengl: OpenGL) -> Game {
@@ -357,6 +376,7 @@ fn main() {
     ).expect("Unable to load font");
 
     let mut status = GameStatus::TitleScreen;
+    let mut wait_end_screen: u32 = 0;
     let mut game = new_game(width, opengl);
 
     let mut events = Events::new(EventSettings::new()).ups(11);
@@ -373,7 +393,11 @@ fn main() {
             status = game_events_manager(&e, &mut game);
         }
 
-        if status == GameStatus::End {
+        if status == GameStatus::EndScreen {
+            status = end_screen_events_manager(&e, &mut game, &mut wait_end_screen, &mut glyph_cache);
+        }
+
+        if status == GameStatus::Quit {
             break;
         }
 
@@ -387,3 +411,4 @@ fn main() {
 // - enlever les liste chainées, mettre des vecteurs
 // - pb des keys qui vont plus vite que l'update
 // - verifier random de la food
+// - bloquer resize
