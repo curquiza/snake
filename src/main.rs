@@ -9,12 +9,12 @@ use piston::event_loop::*;
 use piston::input::*;
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{ GlGraphics, OpenGL, GlyphCache };
+use graphics::{Transformed, math};
 
 use std::collections::LinkedList;
 use std::iter::FromIterator;
 use rand::Rng;
 use std::{thread, time};
-use graphics::Transformed;
 
 static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
 static SNAKE_HEAD_COLOR: [f32; 4] = [0.6, 0.2, 0.6, 1.0];
@@ -194,18 +194,16 @@ impl Food {
             pixels as f64);
 
         gl.draw(args.viewport(), |c, gl| {
-            let transform = c.transform;
-
-            graphics::rectangle(FOOD_COLOR, square, transform, gl);
+            graphics::rectangle(FOOD_COLOR, square, c.transform, gl);
         });
     }
 
     pub fn update(&mut self, width: u32, pixels_per_case: u32, snake: &Snake) {
-        let mut rand_x = rand::thread_rng().gen_range(0, width / pixels_per_case - 1);
-        let mut rand_y = rand::thread_rng().gen_range(0, width / pixels_per_case - 1);
+        let mut rand_x = rand::thread_rng().gen_range(0, width / pixels_per_case);
+        let mut rand_y = rand::thread_rng().gen_range(0, width / pixels_per_case);
         while collision_count(&(rand_x, rand_y), &snake.body) != 0 {
-            rand_x = rand::thread_rng().gen_range(0, width / pixels_per_case - 1);
-            rand_y = rand::thread_rng().gen_range(0, width / pixels_per_case - 1);
+            rand_x = rand::thread_rng().gen_range(0, width / pixels_per_case);
+            rand_y = rand::thread_rng().gen_range(0, width / pixels_per_case);
         }
         self.pos_x = rand_x;
         self.pos_y = rand_y;
@@ -218,7 +216,7 @@ fn collision_count(entity: &(u32, u32), body: &LinkedList<(u32, u32)>) -> usize 
     }).count()
 }
 
-fn draw_text(glyph_cache: &mut GlyphCache, color: [f32; 4], size: u32, text: &str, transform: graphics::math::Matrix2d, gl: &mut GlGraphics) {
+fn draw_text(glyph_cache: &mut GlyphCache, color: [f32; 4], size: u32, text: &str, transform: math::Matrix2d, gl: &mut GlGraphics) {
     graphics::text(
         color,
         size,
@@ -369,7 +367,7 @@ fn main() {
     .build()
     .unwrap();
 
-    let mut glyph_cache: GlyphCache = graphics::glyph_cache::rusttype::GlyphCache::new(
+    let mut glyph_cache: GlyphCache = GlyphCache::new(
         "./assets/PxPlus_IBM_VGA8.ttf",
         (),
         opengl_graphics::TextureSettings::new()
