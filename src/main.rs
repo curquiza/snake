@@ -32,6 +32,7 @@ static END_SCREEN_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 0.2];
 #[derive(Debug, Clone, PartialEq)]
 enum GameStatus {
     Running,
+    Pause,
     TitleScreen,
     EndScreen,
     Quit,
@@ -86,8 +87,6 @@ impl Game {
     }
 
     fn end(&mut self) {
-        println!("End of game.");
-        println!("Your score : {}", self.score);
     }
 
     pub fn update(&mut self) -> bool {
@@ -257,6 +256,7 @@ fn wait_in_sec(time: u64) {
     thread::sleep(t);
 }
 
+
 fn game_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache) -> GameStatus {
     if let Some(r) = e.render_args() {
         game.render(&r, glyph_cache);
@@ -270,10 +270,41 @@ fn game_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache)
 
     if let Some(k) = e.button_args() {
         if k.state == ButtonState::Press {
-            game.pressed(&k.button)
+            if k.button == Button::Keyboard(Key::Space) {
+                return GameStatus::Pause
+            }
+            game.pressed(&k.button);
         }
     }
     return GameStatus::Running
+}
+
+fn pause_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache) -> GameStatus {
+    if let Some(r) = e.render_args() {
+        game.render(&r, glyph_cache);
+        let pixels = game.pixels_per_case;
+        game.gl.draw(r.viewport(), |c, gl| {
+            let background = graphics::rectangle::square(0.0, 0.0, 500.0);
+            graphics::rectangle(END_SCREEN_COLOR, background, c.transform, gl);
+            draw_text(
+                glyph_cache,
+                TITLE_TEXT_COLOR, 25,
+                "Pause",
+                c.transform.trans(10.5 * pixels as f64, 12.0 * pixels as f64),
+                gl
+            );
+        })
+    }
+
+    if let Some(k) = e.button_args() {
+        if k.state == ButtonState::Press {
+            if k.button == Button::Keyboard(Key::Space) {
+                return GameStatus::Running
+            }
+        }
+    }
+
+    return GameStatus::Pause
 }
 
 fn title_screen_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache) -> GameStatus {
@@ -406,7 +437,6 @@ fn main() {
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
-
         if status == GameStatus::TitleScreen {
             status = title_screen_events_manager(&e, &mut game, &mut glyph_cache);
             if status == GameStatus::Running {
@@ -416,6 +446,8 @@ fn main() {
 
         if status == GameStatus::Running {
             status = game_events_manager(&e, &mut game, &mut glyph_cache);
+        } else if status == GameStatus::Pause {
+            status = pause_events_manager(&e, &mut game, &mut glyph_cache);
         }
 
         if status == GameStatus::EndScreen {
@@ -431,7 +463,7 @@ fn main() {
 
 // TODO:
 // - mettre pause
-// - afficher le score sur la fenetre
+// - ecran des scores sur l'ecran titre
+// - demander login fin de jeu si besoin
 // - enlever les liste chainées, mettre des vecteurs
 // - pb des keys qui vont plus vite que l'update
-// - bloquer resize
