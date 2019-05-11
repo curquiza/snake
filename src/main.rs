@@ -17,9 +17,14 @@ use rand::Rng;
 use std::{thread, time};
 
 static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
-static SNAKE_HEAD_COLOR: [f32; 4] = [0.6, 0.2, 0.6, 1.0];
+// static BACKGROUND_COLOR: [f32; 4] = [0.788, 0.98, 0.376, 1.0];
+// static BACKGROUND_COLOR: [f32; 4] = [0.392, 0.945, 0.365, 1.0];
+static SNAKE_HEAD_COLOR: [f32; 4] = [0.67, 0.0, 0.396, 1.0];
 static SNAKE_BODY_COLOR: [f32; 4] = [0.925, 0.0, 0.55, 1.0];
-static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
+// static FOOD_COLOR: [f32; 4] = [1.00, 0.784, 0.604, 1.0];
+static FOOD_COLOR: [f32; 4] = [1.00, 0.639, 0.341, 1.0];
+// static FOOD_COLOR: [f32; 4] = [1.00, 0.706, 0.467, 1.0];
+// static FOOD_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
 static MAIN_TEXT_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 1.0];
 static TITLE_TEXT_COLOR: [f32; 4] = SNAKE_BODY_COLOR;
 static END_SCREEN_COLOR: [f32; 4] = [1.0, 1.0, 0.88, 0.2];
@@ -42,6 +47,7 @@ enum Direction {
 
 struct Game {
     width: u32,
+    score_bar_height: u32,
     pixels_per_case: u32,
     gl: GlGraphics,
     score: u32,
@@ -50,10 +56,29 @@ struct Game {
 }
 
 impl Game {
-    fn render(&mut self, arg: &RenderArgs) {
-
-        self.gl.draw(arg.viewport(), |_c, gl| {
+    fn render(&mut self, arg: &RenderArgs, glyph_cache: &mut GlyphCache) {
+        let score = self.score;
+        let score_pos_x: f64 = (1 * self.pixels_per_case) as f64;
+        let score_pos_y: f64 = ((self.width / self.pixels_per_case) as f64 - 0.8) * self.pixels_per_case as f64;
+        let line_pos_y: f64 = (self.width - self.score_bar_height) as f64 + 1.0;
+        let width: f64 = self.width as f64;
+        self.gl.draw(arg.viewport(), |c, gl| {
             graphics::clear(BACKGROUND_COLOR, gl);
+            draw_text(
+                glyph_cache,
+                MAIN_TEXT_COLOR,
+                12,
+                &format!("Score: {}", score),
+                c.transform.trans(score_pos_x, score_pos_y),
+                gl
+            );
+            graphics::line(
+                MAIN_TEXT_COLOR,
+                1.0,
+                [0.0, line_pos_y, width, line_pos_y],
+                c.transform,
+                gl
+            )
         });
 
         self.food.render(&mut self.gl, arg, self.pixels_per_case);
@@ -66,7 +91,7 @@ impl Game {
     }
 
     pub fn update(&mut self) -> bool {
-        if self.snake.will_hit_wall(self.width, self.pixels_per_case) == true {
+        if self.snake.will_hit_wall(self.width, self.width - self.score_bar_height, self.pixels_per_case) == true {
             self.end();
             return false
         }
@@ -79,7 +104,7 @@ impl Game {
         if self.snake_eats_food() == true {
             self.score += 1;
             self.snake.grow(self.width, self.pixels_per_case);
-            self.food.update(self.width, self.pixels_per_case, &self.snake);
+            self.food.update(self.width, self.width - self.score_bar_height, self.pixels_per_case, &self.snake);
         }
 
         self.snake.update();
@@ -148,11 +173,11 @@ impl Snake {
         return false
     }
 
-    pub fn will_hit_wall(&mut self, width: u32, pixels: u32) -> bool {
+    pub fn will_hit_wall(&mut self, width: u32, height: u32, pixels: u32) -> bool {
         if let Some(snake_head) = self.body.front() {
             match self.direction {
                 Direction::Up if snake_head.1 == 0 => return true,
-                Direction::Down if snake_head.1 >= (width / pixels - 1) => return true,
+                Direction::Down if snake_head.1 >= (height / pixels - 1) => return true,
                 Direction::Left if snake_head.0 == 0 => return true,
                 Direction::Right if snake_head.0 >= (width / pixels - 1) => return true,
                 _ => return false
@@ -198,12 +223,12 @@ impl Food {
         });
     }
 
-    pub fn update(&mut self, width: u32, pixels_per_case: u32, snake: &Snake) {
+    pub fn update(&mut self, width: u32, height: u32, pixels_per_case: u32, snake: &Snake) {
         let mut rand_x = rand::thread_rng().gen_range(0, width / pixels_per_case);
-        let mut rand_y = rand::thread_rng().gen_range(0, width / pixels_per_case);
+        let mut rand_y = rand::thread_rng().gen_range(0, height / pixels_per_case);
         while collision_count(&(rand_x, rand_y), &snake.body) != 0 {
             rand_x = rand::thread_rng().gen_range(0, width / pixels_per_case);
-            rand_y = rand::thread_rng().gen_range(0, width / pixels_per_case);
+            rand_y = rand::thread_rng().gen_range(0, height / pixels_per_case);
         }
         self.pos_x = rand_x;
         self.pos_y = rand_y;
@@ -232,9 +257,9 @@ fn wait_in_sec(time: u64) {
     thread::sleep(t);
 }
 
-fn game_events_manager(e: &Event, game: &mut Game) -> GameStatus {
+fn game_events_manager(e: &Event, game: &mut Game, glyph_cache: &mut GlyphCache) -> GameStatus {
     if let Some(r) = e.render_args() {
-        game.render(&r);
+        game.render(&r, glyph_cache);
     }
 
     if let Some(_u) = e.update_args() {
@@ -338,9 +363,10 @@ fn end_screen_events_manager(e: &Event, game: &mut Game, wait_end_screen: &mut u
     return GameStatus::EndScreen
 }
 
-fn new_game(width: u32, opengl: OpenGL) -> Game {
+fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL) -> Game {
     Game {
-        width: width,
+        width: game_width,
+        score_bar_height: score_bar_height,
         pixels_per_case: 20,
         gl: GlGraphics::new(opengl),
         score: 0,
@@ -357,11 +383,12 @@ fn new_game(width: u32, opengl: OpenGL) -> Game {
 
 fn main() {
     let opengl = OpenGL::V3_2;
-    let width: u32 = 500;
+    let game_width: u32 = 500;
+    let score_bar_height: u32 = 40;
 
     let mut window: Window = WindowSettings::new(
         "Best Snake Ever",
-        [width, width]
+        [game_width, game_width]
     ).opengl(opengl)
     .exit_on_esc(true)
     .build()
@@ -375,7 +402,7 @@ fn main() {
 
     let mut status = GameStatus::TitleScreen;
     let mut wait_end_screen: u32 = 0;
-    let mut game = new_game(width, opengl);
+    let mut game = new_game(game_width, score_bar_height, opengl);
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
@@ -383,12 +410,12 @@ fn main() {
         if status == GameStatus::TitleScreen {
             status = title_screen_events_manager(&e, &mut game, &mut glyph_cache);
             if status == GameStatus::Running {
-                game = new_game(width, opengl);
+                game = new_game(game_width, score_bar_height, opengl);
             }
         }
 
         if status == GameStatus::Running {
-            status = game_events_manager(&e, &mut game);
+            status = game_events_manager(&e, &mut game, &mut glyph_cache);
         }
 
         if status == GameStatus::EndScreen {
@@ -405,8 +432,6 @@ fn main() {
 // TODO:
 // - mettre pause
 // - afficher le score sur la fenetre
-// - ecran de fin
 // - enlever les liste chainées, mettre des vecteurs
 // - pb des keys qui vont plus vite que l'update
-// - verifier random de la food
 // - bloquer resize
