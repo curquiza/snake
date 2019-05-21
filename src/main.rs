@@ -16,6 +16,7 @@ use std::iter::FromIterator;
 use rand::Rng;
 use std::{thread, time};
 use std::io::{self, BufRead, Write};
+use std::env;
 
 static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
 // static BACKGROUND_COLOR: [f32; 4] = [0.788, 0.98, 0.376, 1.0];
@@ -413,7 +414,9 @@ fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL) -> Game {
     }
 }
 
-fn launch_snake_game() {
+fn launch_snake_game(login: &str) {
+    println!("Let's start to play {}!", login);
+
     let opengl = OpenGL::V3_2;
     let game_width: u32 = 500;
     let score_bar_height: u32 = 40;
@@ -470,18 +473,23 @@ fn prompt(str: &str) -> std::io::Result<()> {
 
 fn main() -> std::io::Result<()> {
 
-    prompt("Your login: ")?;
-    let stdin = io::stdin();
-    for line in stdin.lock().lines() {
-        if let Ok(l) = line {
-            let trim_str = l.trim();
-            if trim_str.is_empty() == false {
-                println!("Let's start to play {}!", l);
-                launch_snake_game();
-                break;
+    let args: Vec<String> = env::args().collect();
+    if (args.len() <= 1) || (args.len() >= 2 && args[1].trim().is_empty() == true) {
+        prompt("Your login: ")?;
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            if let Ok(l) = line {
+                let trim_login = l.trim();
+                if trim_login.is_empty() == false {
+                    launch_snake_game(trim_login);
+                    break;
+                }
+                prompt("Invalid login, try again: ")?;
             }
-            prompt("Invalid login, try again: ")?;
         }
+    } else {
+        let trim_login = args[1].trim();
+        launch_snake_game(trim_login);
     }
 
     Ok(())
