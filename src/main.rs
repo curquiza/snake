@@ -15,6 +15,7 @@ use std::collections::LinkedList;
 use std::iter::FromIterator;
 use rand::Rng;
 use std::{thread, time};
+use std::io::{self, BufRead, Write};
 
 static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
 // static BACKGROUND_COLOR: [f32; 4] = [0.788, 0.98, 0.376, 1.0];
@@ -461,13 +462,15 @@ fn launch_snake_game() {
     }
 }
 
-use std::io::{self, BufRead, Write};
+fn prompt(str: &str) -> std::io::Result<()> {
+    print!("{}", str);
+    io::stdout().flush()?;
+    Ok(())
+}
 
 fn main() -> std::io::Result<()> {
 
-    print!("Your login: ");
-    io::stdout().flush()?;
-
+    prompt("Your login: ")?;
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         if let Ok(l) = line {
@@ -477,8 +480,7 @@ fn main() -> std::io::Result<()> {
                 launch_snake_game();
                 break;
             }
-            print!("Invalid login, try again: ");
-            io::stdout().flush()?;
+            prompt("Invalid login, try again: ")?;
         }
     }
 
