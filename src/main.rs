@@ -412,7 +412,7 @@ fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL) -> Game {
     }
 }
 
-fn main() {
+fn launch_snake_game() {
     let opengl = OpenGL::V3_2;
     let game_width: u32 = 500;
     let score_bar_height: u32 = 40;
@@ -461,8 +461,32 @@ fn main() {
     }
 }
 
+use std::io::{self, BufRead, Write};
+
+fn main() -> std::io::Result<()> {
+
+    print!("Your login: ");
+    io::stdout().flush()?;
+
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        if let Ok(l) = line {
+            let trim_str = l.trim();
+            if trim_str.is_empty() == false {
+                println!("Let's start to play {}!", l);
+                launch_snake_game();
+                break;
+            }
+            print!("Invalid login, try again: ");
+            io::stdout().flush()?;
+        }
+    }
+
+    Ok(())
+
+}
+
 // TODO:
-// - mettre pause
 // - ecran des scores sur l'ecran titre
 // - demander login fin de jeu si besoin
 // - enlever les liste chainées, mettre des vecteurs
