@@ -471,36 +471,25 @@ fn prompt(str: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn get_trim_login(args: Vec<String>) -> Option<String> {
-    if (args.len() <= 1) || (args.len() >= 2 && args[1].trim().is_empty() == true) {
-        if let Err(_) = prompt("Your login: ") {
-            return None
-        }
-        let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            if let Ok(l) = line {
-                let trim_login = l.trim();
-                if trim_login.is_empty() == false {
-                    return Some(trim_login.to_string())
-                }
-                if let Err(_) = prompt("Invalid login, try again: ") {
-                    return None
-                }
-            }
-        }
-    } else {
-        let trim_login = args[1].trim();
-        return Some(trim_login.to_string());
-    }
-    return None
-}
+fn main() -> std::io::Result<()> {
+    let first_arg = env::args().nth(1).map(Ok);
+    let stdin = io::stdin();
+    let inputs = first_arg.into_iter().chain(stdin.lock().lines());
 
-fn main() {
+    prompt("Your login: ")?;
 
-    let args: Vec<String> = env::args().collect();
-    if let Some(trim_login) = get_trim_login(args) {
-        launch_snake_game(&trim_login);
+    for input in inputs {
+        let input = input?;
+
+        let login = input.trim();
+        if !login.is_empty() {
+            launch_snake_game(login);
+        }
+
+        prompt("Invalid login, try again: ")?;
     }
+
+    Ok(())
 
 }
 
