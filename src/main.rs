@@ -472,24 +472,21 @@ fn prompt(str: &str) -> std::io::Result<()> {
 }
 
 fn main() -> std::io::Result<()> {
+    let first_arg = env::args().nth(1).map(Ok);
+    let stdin = io::stdin();
+    let inputs = first_arg.into_iter().chain(stdin.lock().lines());
 
-    let args: Vec<String> = env::args().collect();
-    if (args.len() <= 1) || (args.len() >= 2 && args[1].trim().is_empty() == true) {
-        prompt("Your login: ")?;
-        let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            if let Ok(l) = line {
-                let trim_login = l.trim();
-                if trim_login.is_empty() == false {
-                    launch_snake_game(trim_login);
-                    break;
-                }
-                prompt("Invalid login, try again: ")?;
-            }
+    prompt("Your login: ")?;
+
+    for input in inputs {
+        let input = input?;
+
+        let login = input.trim();
+        if !login.is_empty() {
+            launch_snake_game(login);
         }
-    } else {
-        let trim_login = args[1].trim();
-        launch_snake_game(trim_login);
+
+        prompt("Invalid login, try again: ")?;
     }
 
     Ok(())
