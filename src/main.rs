@@ -488,32 +488,11 @@ fn get_trim_login(first_arg: Option<Result<std::string::String, std::io::Error>>
             }
         }
     }
-    // if (args.len() <= 1) || (args.len() >= 2 && args[1].trim().is_empty() == true) {
-    //     if let Err(_) = prompt("Your login: ") {
-    //         return None
-    //     }
-    //     let stdin = io::stdin();
-    //     for line in stdin.lock().lines() {
-    //         if let Ok(l) = line {
-    //             let trim_login = l.trim();
-    //             if trim_login.is_empty() == false {
-    //                 return Some(trim_login.to_string())
-    //             }
-    //             if let Err(_) = prompt("Invalid login, try again: ") {
-    //                 return None
-    //             }
-    //         }
-    //     }
-    // } else {
-    //     let trim_login = args[1].trim();
-    //     return Some(trim_login.to_string());
-    // }
     return None
 }
 
 fn main() {
 
-    // let args: Vec<String> = env::args().collect();
     let first_arg = env::args().nth(1).map(Ok);
     if let Some(trim_login) = get_trim_login(first_arg) {
         launch_snake_game(&trim_login);
