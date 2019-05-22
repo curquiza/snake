@@ -68,7 +68,7 @@ impl Game {
         let score_pos_y: f64 = ((self.width / self.pixels_per_case) as f64 - 0.8) * self.pixels_per_case as f64;
         let line_pos_y: f64 = (self.width - self.score_bar_height) as f64 + 1.0;
         let width: f64 = self.width as f64;
-        let login_str: &str = get_displayed_login(&self.login);
+        let login_str: &str = &get_displayed_login(&self.login);
         self.gl.draw(arg.viewport(), |c, gl| {
             graphics::clear(BACKGROUND_COLOR, gl);
             draw_text(
@@ -484,11 +484,11 @@ fn prompt(str: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn get_displayed_login(login: &str) -> &str {
+fn get_displayed_login(login: &str) -> String {
     if login.len() >= 20 {
-        return &login[0..19]
+        return format!("{}...", &login[0..19])
     }
-    return &login
+    return login.to_string()
 }
 
 fn get_trim_login(first_arg: Option<Result<std::string::String, std::io::Error>>) -> Option<String> {
