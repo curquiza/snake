@@ -55,18 +55,30 @@ struct Game {
     gl: GlGraphics,
     score: u32,
     snake: Snake,
-    food: Food
+    food: Food,
+    login: String
 }
 
 impl Game {
     fn render(&mut self, arg: &RenderArgs, glyph_cache: &mut GlyphCache) {
         let score = self.score;
-        let score_pos_x: f64 = (1 * self.pixels_per_case) as f64;
+        let login_pos_x: f64 = (1 * self.pixels_per_case) as f64;
+        let login_pos_y: f64 = ((self.width / self.pixels_per_case) as f64 - 0.8) * self.pixels_per_case as f64;
+        let score_pos_x: f64 = (20 * self.pixels_per_case) as f64;
         let score_pos_y: f64 = ((self.width / self.pixels_per_case) as f64 - 0.8) * self.pixels_per_case as f64;
         let line_pos_y: f64 = (self.width - self.score_bar_height) as f64 + 1.0;
         let width: f64 = self.width as f64;
+        let login_str: &str = get_displayed_login(&self.login);
         self.gl.draw(arg.viewport(), |c, gl| {
             graphics::clear(BACKGROUND_COLOR, gl);
+            draw_text(
+                glyph_cache,
+                MAIN_TEXT_COLOR,
+                12,
+                login_str,
+                c.transform.trans(login_pos_x, login_pos_y),
+                gl
+            );
             draw_text(
                 glyph_cache,
                 MAIN_TEXT_COLOR,
@@ -396,7 +408,7 @@ fn end_screen_events_manager(e: &Event, game: &mut Game, wait_end_screen: &mut u
     return GameStatus::EndScreen
 }
 
-fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL) -> Game {
+fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL, login: &str) -> Game {
     Game {
         width: game_width,
         score_bar_height: score_bar_height,
@@ -410,7 +422,8 @@ fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL) -> Game {
         food: Food {
             pos_x: 15,
             pos_y: 15
-        }
+        },
+        login: login.to_string()
     }
 }
 
@@ -437,14 +450,14 @@ fn launch_snake_game(login: &str) {
 
     let mut status = GameStatus::TitleScreen;
     let mut wait_end_screen: u32 = 0;
-    let mut game = new_game(game_width, score_bar_height, opengl);
+    let mut game = new_game(game_width, score_bar_height, opengl, login);
 
     let mut events = Events::new(EventSettings::new()).ups(11);
     while let Some(e) = events.next(&mut window) {
         if status == GameStatus::TitleScreen {
             status = title_screen_events_manager(&e, &mut game, &mut glyph_cache);
             if status == GameStatus::Running {
-                game = new_game(game_width, score_bar_height, opengl);
+                game = new_game(game_width, score_bar_height, opengl, login);
             }
         }
 
@@ -469,6 +482,13 @@ fn prompt(str: &str) -> std::io::Result<()> {
     print!("{}", str);
     io::stdout().flush()?;
     Ok(())
+}
+
+fn get_displayed_login(login: &str) -> &str {
+    if login.len() >= 20 {
+        return &login[0..19]
+    }
+    return &login
 }
 
 fn get_trim_login(first_arg: Option<Result<std::string::String, std::io::Error>>) -> Option<String> {
