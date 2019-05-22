@@ -15,6 +15,8 @@ use std::collections::LinkedList;
 use std::iter::FromIterator;
 use rand::Rng;
 use std::{thread, time};
+use std::io::{self, BufRead, Write};
+use std::env;
 
 static BACKGROUND_COLOR: [f32; 4] = [0.56, 0.93, 0.56, 1.0];
 // static BACKGROUND_COLOR: [f32; 4] = [0.788, 0.98, 0.376, 1.0];
@@ -412,7 +414,9 @@ fn new_game(game_width: u32, score_bar_height: u32, opengl: OpenGL) -> Game {
     }
 }
 
-fn main() {
+fn launch_snake_game(login: &str) {
+    println!("Let's start to play {}!", login);
+
     let opengl = OpenGL::V3_2;
     let game_width: u32 = 500;
     let score_bar_height: u32 = 40;
@@ -461,8 +465,42 @@ fn main() {
     }
 }
 
+fn prompt(str: &str) -> std::io::Result<()> {
+    print!("{}", str);
+    io::stdout().flush()?;
+    Ok(())
+}
+
+fn get_trim_login(first_arg: Option<Result<std::string::String, std::io::Error>>) -> Option<String> {
+    let stdin = io::stdin();
+    let inputs = first_arg.into_iter().chain(stdin.lock().lines());
+    if let Err(_) = prompt("Your login: ") {
+        return None
+    }
+    for input in inputs {
+        if let Ok(input) = input {
+            let login = input.trim();
+            if !login.is_empty() {
+                return Some(login.to_string())
+            }
+            if let Err(_) = prompt("Invalid login, try again: ") {
+                return None
+            }
+        }
+    }
+    return None
+}
+
+fn main() {
+
+    let first_arg = env::args().nth(1).map(Ok);
+    if let Some(trim_login) = get_trim_login(first_arg) {
+        launch_snake_game(&trim_login);
+    }
+
+}
+
 // TODO:
-// - mettre pause
 // - ecran des scores sur l'ecran titre
 // - demander login fin de jeu si besoin
 // - enlever les liste chainées, mettre des vecteurs
